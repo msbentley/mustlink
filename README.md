@@ -21,4 +21,4 @@ user:
 
 ## Example
 
-The Jupyter notebook included with this repository shows an example of how to use the code. Note that not all API functions are wrapped by this library, but only those that are commonly used.
+The Jupyter notebook included with this repository shows an example of how to use the code. Note that not all API functions are wrapped by this library, but only those that are commonly used. To view the notebook, click [here](https://nbviewer.jupyter.org/github/msbentley/mustlink/blob/master/mustlink_example.ipynb).
