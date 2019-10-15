@@ -8,7 +8,7 @@ This is a simple wrapper in python for the [WebMUST](https://www.esa.int/Enablin
 The URL for the WebMUST instance in use can be specified when instantiating the Must class. If none is given, a defauly URL is used. For example:
 
 ```python
-must = mustlink.Must(url=https://mustinstance.com/mustlink)
+must = mustlink.Must(url='https://mustinstance.com/mustlink')
 ```
 
 ## Authentication
