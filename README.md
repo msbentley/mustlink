@@ -3,6 +3,30 @@ A python wrapper for the WebMUST API (mustlink)
 
 This is a simple wrapper in python for the [WebMUST](https://www.esa.int/Enabling_Support/Operations/WebMUST_br_A_web-based_client_for_MUST) API.
 
+## Dependencies
+
+The following dependencies must be met:
+- python 3
+- matplotlib
+- pandas
+
+## Installation
+
+First, clone this repository. If you are using conda, the dependencies can be installed in a new environment using the provided environment file:
+
+```conda env create -f environment.yml```
+
+The newly created environment can be activate with:
+
+```conda activate mustlink```
+
+Otherwise, please make sure the dependencies are installed with your system package manager, or a tool like `pip`. Use of a conda environment or virtualenv is recommended!
+
+The package can then be installed with:
+
+```python setup.py install```
+
+
 ## URL
 
 The URL for the WebMUST instance in use can be specified when instantiating the Must class. If none is given, a defauly URL is used. For example:
