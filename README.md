@@ -16,7 +16,7 @@ First, clone this repository. If you are using conda, the dependencies can be in
 
 ```conda env create -f environment.yml```
 
-The newly created environment can be activate with:
+The newly created environment can be activated with:
 
 ```conda activate mustlink```
 
@@ -40,7 +40,7 @@ must = mustlink.Must(url='https://mustinstance.com/mustlink')
 Access to WebMUST needs authentication. This is controlled by a config file which can be pointed to by the `config_file` parameter when instantiating the Must class, for example:
 
 ```python
-must = mustlink.Must(config_file='path_to/config.file'
+must = mustlink.Must(config_file='path_to/config.file')
 ```
 
 If nothing is specified, a file `mustlink.yml` is looked for in paths pointed to by the environment variables `APPDATA`, `XDG_CONFIG_HOME` or in the `.config` folder in the user's home directory.
