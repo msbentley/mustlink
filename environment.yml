@@ -1,0 +1,8 @@
+ 
+name: mustlink
+channels:
+  - defaults
+dependencies:
+  - python=3
+  - matplotlib
+  - pandas
