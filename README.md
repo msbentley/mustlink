@@ -49,8 +49,8 @@ The configuration file should be in YAML format and contain the username and pas
 
 ```yaml
 user:
-    login: userone
-    password: blah
+    login: "userone"
+    password: "blah"
 ```
 
 ## Example
