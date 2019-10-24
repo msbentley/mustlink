@@ -10,6 +10,7 @@ The following dependencies must be met:
 - matplotlib
 - pandas
 - yaml
+- requests
 
 ## Installation
 
