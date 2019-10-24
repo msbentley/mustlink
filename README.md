@@ -9,6 +9,7 @@ The following dependencies must be met:
 - python 3
 - matplotlib
 - pandas
+- yaml
 
 ## Installation
 
