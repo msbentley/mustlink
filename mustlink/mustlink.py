@@ -11,13 +11,14 @@ YAML file and pointed at by the config_file parameter when
 instantiated the Must class. An example is:
 
 user:
-    login: userone
-    password: blah
+    login: "userone"
+    password: "blah"
 
 """
 
 import yaml
 import requests
+import urllib
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -38,6 +39,7 @@ default_config = os.path.join(
     "mustlink.yml")
 
 date_format = '%Y-%m-%d %H:%M:%S'
+date_format_ms = '%Y-%m-%d %H:%M:%S.%f'
 
 class Must:
 
@@ -197,7 +199,7 @@ class Must:
 
 
     def get_table_data(self, table, start_time=None, stop_time=None, search_key='name', search_text='', provider=None, max_rows=1000):
-        """Retrieve tabular data from a WebMUSstart_tT provider and format into a pandas
+        """Retrieve tabular data from a WebMUST provider and format into a pandas
         DataFrame. Columns with 'time' in the title are assumed to be times, and 
         are accordingly converted to Timestamps. Setting max_rows limits the number
         of rows returned by the API (when this is excluded the API returns a maximum
@@ -262,6 +264,57 @@ class Must:
             log.warn('number of rows returned equal to maximum - increase max_rows for more data')
 
         return table_data
+
+
+    def get_table_param(self, table, param_name, start_time, provider=None):
+        """Requests table parameters for a given parameter and timestamp. Minimal checking is 
+        currently performed on the times and return codes. Data are formatted into
+        a Pandas DataFrame with time conversion to UTC performed"""
+
+        provider = self.get_provider(provider)
+        if provider is None:
+            return None
+
+        if self.tables is None:
+            self.get_tables(provider)
+
+        tables = [table['dataType'] for table in self.tables[provider]]
+        if table not in tables:
+            log.error('table {:s} invalid for provider {:s}'.format(table, provider))
+            return None
+
+        if type(start_time) == str:
+            start_time = pd.Timestamp(start_time)
+
+
+        params={
+            'elementId': param_name,
+            'ssc': 'null',
+            'timestamp': start_time.strftime(date_format_ms)[:-3]}
+
+        
+        params = urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
+        r = requests.get(self._url('/web/tables/params/{:s}/{:s}'.format(provider, table)),
+            headers={'Authorization': self.token}, params=params)
+
+        r.raise_for_status()
+        data = r.json()
+
+        if len(data['data']) == 0:
+            log.warn('no data found for the given parameter and time')
+            return None
+
+        cols = data['headers']
+        datacells = [row['dataCells'] for row in data['data']][0]
+        table_data = pd.DataFrame(datacells)
+        drop_cols = ['cellValue', 'altText', 'bgColor', 'detail', 'webpagelink', 'rowParams']
+        table_data.drop(drop_cols, inplace=True, axis=1)
+        table_data.columns = cols
+
+        log.info('{:d} table entries retrieved'.format(len(table_data)))
+
+        return table_data
+
 
 
     def get_data(self, param_name, start_time=None, stop_time=None, provider=None, calib=False, max_pts=None):
