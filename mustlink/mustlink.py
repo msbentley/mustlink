@@ -133,7 +133,11 @@ class Must:
         """Sets a default provider. In other API calls that need a 
         provider, if provider=None this default is used instead"""
         
-        self.default_provider = provider
+        check = self.check_provider(provider)
+        if check is not None:
+            self.default_provider = provider
+        else:
+            return None
 
 
     def get_provider(self, provider):
@@ -414,7 +418,10 @@ class Must:
         ax.scatter(data.index, data[param_name], marker='.')
         ax.set_title(meta['Description'])
         ax.set_xlabel('Date (UTC)')
-        ax.set_ylabel(meta['Unit'])
+        if 'Unit' in meta.index:
+            ax.set_ylabel(meta['Unit'])
+        else:
+            ax.set_ylabel('Raw')
         ax.grid(True)
         fig.autofmt_xdate()
         xfmt = md.DateFormatter('%Y-%m-%d %H:%M:%S')
