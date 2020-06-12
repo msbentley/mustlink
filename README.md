@@ -31,7 +31,7 @@ The package can then be installed with:
 
 ## URL
 
-The URL for the WebMUST instance in use can be specified when instantiating the Must class. If none is given, a defauly URL is used. For example:
+The URL for the WebMUST instance in use can be specified when instantiating the Must class. If none is given, a default URL is used. For example:
 
 ```python
 must = mustlink.Must(url='https://mustinstance.com/mustlink')
