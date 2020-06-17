@@ -202,7 +202,7 @@ class Must:
         return table_meta
 
 
-    def get_table_data(self, table, start_time=None, stop_time=None, search_key='name', search_text='', provider=None, max_rows=1000):
+    def get_table_data(self, table, start_time=None, stop_time=None, search_key='name', search_text='', provider=None, max_rows=1000, quiet=False):
         """Retrieve tabular data from a WebMUST provider and format into a pandas
         DataFrame. Columns with 'time' in the title are assumed to be times, and 
         are accordingly converted to Timestamps. Setting max_rows limits the number
@@ -263,14 +263,15 @@ class Must:
         for col in time_cols:
             table_data[col] = pd.to_datetime(table_data[col])
         
-        log.info('{:d} table entries retrieved'.format(len(table_data)))
+        if not quiet:
+            log.info('{:d} table entries retrieved'.format(len(table_data)))
         if len(table_data) == max_rows:
             log.warn('number of rows returned equal to maximum - increase max_rows for more data')
 
         return table_data
 
 
-    def get_table_param(self, table, param_name, start_time, provider=None):
+    def get_table_param(self, table, param_name, start_time, provider=None, quiet=True):
         """Requests table parameters for a given parameter and timestamp. Minimal checking is 
         currently performed on the times and return codes. Data are formatted into
         a Pandas DataFrame with time conversion to UTC performed"""
@@ -315,7 +316,8 @@ class Must:
         table_data.drop(drop_cols, inplace=True, axis=1)
         table_data.columns = cols
 
-        log.info('{:d} table entries retrieved'.format(len(table_data)))
+        if not quiet:
+            log.info('{:d} table entries retrieved'.format(len(table_data)))
 
         return table_data
 
@@ -497,9 +499,23 @@ class Must:
         return stats
 
 
-    def search_description(self, search_text, provider=None):
+    def search_parameter(self, search_text, search_by='description', provider=None):
         """The provided searche text is used to search within the parameter
-        descriptions. Matching parameters are returned in a Pandas DataFrame.."""
+        descriptions. Matching parameters are returned in a Pandas DataFrame.
+        
+        Search can be by name (mnemonic) or description. 
+        
+        Set search_by='name' or 'description'
+        """
+
+        search_by_dict = {
+            'description': 'Description',
+            'name': 'Name'
+        }
+
+        if search_by not in search_by_dict.keys():
+            log.error('search_by must be set to either description or name')
+            return None
 
         provider = self.get_provider(provider)
         if provider is None:
@@ -508,7 +524,7 @@ class Must:
         r = requests.get(self._url('/dataproviders/{:s}/parameters'.format(provider)),
         headers={'Authorization': self.token},
         params={
-            'key': 'Description',
+            'key': search_by_dict[search_by],
             'value': search_text,
             'search': 'true',
             'mode': 'SIMPLE',
@@ -531,3 +547,6 @@ class Must:
         log.info('{:d} parameters match search text: {:s}'.format(len(params), search_text))
 
         return params
+
+
+
