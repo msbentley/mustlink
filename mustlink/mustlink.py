@@ -274,7 +274,6 @@ class Must:
         else:
             table_data = pd.DataFrame(data['data'])
 
-
         time_cols = [col for col in table_data.columns if 'time' in col.lower()]
         for col in time_cols:
             table_data[col] = pd.to_datetime(table_data[col])
@@ -388,7 +387,7 @@ class Must:
                 'values': param_name,
                 'from': start_time.strftime(date_format),
                 'to': stop_time.strftime(date_format),
-                #'calibrate': 'true' if calib else 'false',
+                'calibrate': 'true' if calib else 'false',
                 'chunkCount': '' if max_pts is None else max_pts})
         r.raise_for_status()
 
