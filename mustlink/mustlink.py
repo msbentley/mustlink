@@ -202,12 +202,21 @@ class Must:
         return table_meta
 
 
-    def get_table_data(self, table, start_time=None, stop_time=None, search_key='name', search_text='', provider=None, max_rows=1000, quiet=False):
+    def get_table_data(self, table, start_time=None, stop_time=None, search_key='name', search_text='', 
+        provider=None, max_rows=1000, mode='brief', fmt='complex', quiet=False):
         """Retrieve tabular data from a WebMUST provider and format into a pandas
         DataFrame. Columns with 'time' in the title are assumed to be times, and 
         are accordingly converted to Timestamps. Setting max_rows limits the number
         of rows returned by the API (when this is excluded the API returns a maximum
         of 5000)"""
+
+        if mode not in ['brief', 'full']:
+            log.error('mode must be one of brief, full')
+            return None
+
+        if fmt not in ['simple', 'complex']:
+            log.error('table must be one of simple, complex')
+            return None
 
         provider = self.get_provider(provider)
         if provider is None:
@@ -240,8 +249,10 @@ class Must:
                 'to': stop_time.strftime(date_format),
                 'filterKeys': search_key,
                 'filterValues': search_text,
+                'mode': mode.upper(),
+                'representation': fmt.upper(),
                 'maxRows': max_rows})
-
+        log.debug('request URL: {:s}'.format(r.url))
         log.debug('data retrieval done')
 
         r.raise_for_status()
@@ -254,10 +265,15 @@ class Must:
         cols = data['headers']
 
         table_data = pd.DataFrame([], columns=cols)
-        datacells = [row['dataCells'] for row in data['data']]
-        for idx, col in enumerate(cols):
-            col_vals = pd.DataFrame(datacells)[idx].apply( lambda row: row['cellValue'] )
-            table_data[col] = col_vals
+        if fmt=='complex':
+            datacells = [row['dataCells'] for row in data['data']]
+            
+            for idx, col in enumerate(cols):
+                col_vals = pd.DataFrame(datacells)[idx].apply( lambda row: row['cellValue'] )
+                table_data[col] = col_vals
+        else:
+            table_data = pd.DataFrame(data['data'])
+
 
         time_cols = [col for col in table_data.columns if 'time' in col.lower()]
         for col in time_cols:
@@ -323,6 +339,29 @@ class Must:
 
 
 
+    def get_aggregations(self, provider=None, id=None):
+
+        provider = self.get_provider(provider)
+        if provider is None:
+            return None
+
+        if id is not None:
+            params = {
+                'key': 'id',
+                'value': id }
+        else:
+            params = {}
+
+        r = requests.get(self._url('/dataproviders/{:s}/aggregations'.format(provider)),
+            params = params,
+            headers={'Authorization': self.token})
+        r.raise_for_status()
+
+        return r.json()
+
+
+
+
     def get_data(self, param_name, start_time=None, stop_time=None, provider=None, calib=False, max_pts=None):
         """Requests data for a given parameter and time-range. Minimal checking is 
         currently performed on the times and return codes. Data are formatted into
@@ -349,7 +388,7 @@ class Must:
                 'values': param_name,
                 'from': start_time.strftime(date_format),
                 'to': stop_time.strftime(date_format),
-                'calibrate': 'true' if calib else 'false',
+                #'calibrate': 'true' if calib else 'false',
                 'chunkCount': '' if max_pts is None else max_pts})
         r.raise_for_status()
 
@@ -434,8 +473,15 @@ class Must:
         return ax
 
 
-    def get_param_info(self, param_name, provider=None):
-        """Return meta-data for a single parameter of interest."""
+    def get_param_info(self, param_name, provider=None, mode='simple'):
+        """Return meta-data for a single parameter of interest.
+        
+        Setting mode='complex' will provide additional information such 
+        as monitoring checks etc. but this is currently not unpacked."""
+
+        if mode not in ['simple', 'complex']:
+            log.error('mode must be either simple or complex')
+            return None
 
         provider = self.get_provider(provider)
         if provider is None:
@@ -447,7 +493,7 @@ class Must:
             'key': 'name',
             'value': param_name,
             'search': 'false',
-            'mode': 'SIMPLE',
+            'mode': mode.upper(),
             'parameterType': 'TM'})
         r.raise_for_status()
 
@@ -456,10 +502,13 @@ class Must:
             log.warning('no matches found for parameter {:s}'.format(param_name))
             return None
 
-        param = pd.Series(r.json())
-        param['First Sample'] = pd.to_datetime(param['First Sample'])
-        param['Last Sample'] = pd.to_datetime(param['Last Sample'])
-        
+        if mode=='simple':
+            param = pd.Series(r.json())
+            param['First Sample'] = pd.to_datetime(param['First Sample'])
+            param['Last Sample'] = pd.to_datetime(param['Last Sample'])
+        else:
+            param = r.json()
+
         log.info('parameter info for {:s} extracted'.format(param.Description))
 
         return param
@@ -549,4 +598,26 @@ class Must:
         return params
 
 
+    def tree_search(self, text='', fields='Name,Description', provider=None):
 
+        provider = self.get_provider(provider)
+        if provider is None:
+            return None
+
+        r = requests.get(self._url('/metadata/treesearch'),
+        headers={'Authorization': self.token},
+        params={
+            'field': fields,
+            'text': text,
+            'dataproviders': provider
+        })
+
+        r.raise_for_status()
+
+        data = None
+        for d in r.json():
+            if d['type'].startswith(provider):
+                data = d
+                break
+
+        return data
