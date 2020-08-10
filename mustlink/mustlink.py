@@ -503,8 +503,8 @@ class Must:
 
         if mode=='simple':
             param = pd.Series(r.json())
-            param['First Sample'] = pd.to_datetime(param['First Sample'])
-            param['Last Sample'] = pd.to_datetime(param['Last Sample'])
+            param['First Sample'] = pd.NaT if param['First Sample']=='N/A' else pd.to_datetime(param['First Sample'])
+            param['Last Sample'] = pd.NaT if param['Last Sample']=='N/A' else pd.to_datetime(param['Last Sample'])
         else:
             param = r.json()
 
