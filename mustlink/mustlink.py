@@ -586,10 +586,10 @@ class Must:
 
         params = pd.DataFrame.from_dict(r.json())
         nans = params[params['First Sample']=='N/A'].index
-        params['First Sample'].loc[nans] = pd.NaT
+        params.loc[nans, 'First Sample'] = pd.NaT
         params['First Sample'] = pd.to_datetime(params['First Sample'])
         nans = params[params['Last Sample']=='N/A'].index
-        params['Last Sample'].loc[nans] = pd.NaT
+        params.loc[nans, 'Last Sample'] = pd.NaT
         params['Last Sample'] = pd.to_datetime(params['Last Sample'])
 
         log.info('{:d} parameters match search text: {:s}'.format(len(params), search_text))
