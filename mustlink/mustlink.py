@@ -20,6 +20,7 @@ import yaml
 import requests
 import urllib
 import os
+import functools
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as md
@@ -41,6 +42,20 @@ default_config = os.path.join(
 date_format = '%Y-%m-%d %H:%M:%S'
 date_format_ms = '%Y-%m-%d %H:%M:%S.%f'
 
+def exception(function):
+    """
+    A decorator that wraps the passed in function and handles
+    exceptions raised by requests
+    """
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        try:
+            return function(*args, **kwargs)
+        except requests.exceptions.HTTPError as e:
+            log.error(e)
+        except requests.exceptions.RequestException as e: 
+            log.error(e)
+    return wrapper
 class Must:
 
 
@@ -81,7 +96,7 @@ class Must:
                 r.raise_for_status()
                 self.token = r.json()['token']
             except (requests.exceptions.RequestException, ConnectionResetError) as err:
-                log.error('error with authorisation: {:s}'.format(err))
+                log.error(err)
         except FileNotFoundError:
             log.error('config file {:s} not found'.format(config_file))
 
@@ -89,7 +104,7 @@ class Must:
 
         return
 
-
+    @exception
     def get_user(self):
         """Retrieves information for the currently logged-in user"""
 
@@ -103,6 +118,7 @@ class Must:
         return user
 
 
+    @exception
     def get_providers(self):
         """Obtains a list of so-called providers, e.g. BEPICRUISE in
         the case of BepiColombo"""
@@ -157,6 +173,7 @@ class Must:
         return provider
 
 
+    @exception
     def get_tables(self, provider=None):
         """Retrieves the list of tables for a given provider and stores
         this in a dictionary for later use"""
@@ -178,6 +195,7 @@ class Must:
         return
 
 
+    @exception
     def get_table_meta(self, table, provider=None):
         """Retrieves the meta-data associated with a given table and returns as json"""
 
@@ -202,6 +220,7 @@ class Must:
         return table_meta
 
 
+    @exception
     def get_table_data(self, table, start_time=None, stop_time=None, search_key='name', search_text='', 
         provider=None, max_rows=1000, mode='brief', fmt='complex', quiet=False):
         """Retrieve tabular data from a WebMUST provider and format into a pandas
@@ -286,6 +305,7 @@ class Must:
         return table_data
 
 
+    @exception
     def get_table_param(self, table, param_name, start_time, provider=None, quiet=True):
         """Requests table parameters for a given parameter and timestamp. Minimal checking is 
         currently performed on the times and return codes. Data are formatted into
@@ -337,7 +357,7 @@ class Must:
         return table_data
 
 
-
+    @exception
     def get_aggregations(self, provider=None, id=None):
 
         provider = self.get_provider(provider)
@@ -359,8 +379,7 @@ class Must:
         return r.json()
 
 
-
-
+    @exception
     def get_data(self, param_name, start_time=None, stop_time=None, provider=None, calib=False, max_pts=None):
         """Requests data for a given parameter and time-range. Minimal checking is 
         currently performed on the times and return codes. Data are formatted into
@@ -408,6 +427,7 @@ class Must:
         return data
 
 
+    @exception
     def get_latest_val(self, param_name, provider=None, calib=False):
         """Retrieves the timestamp and value of the last sample for the
         specified parameter"""
@@ -472,6 +492,7 @@ class Must:
         return ax
 
 
+    @exception
     def get_param_info(self, param_name, provider=None, mode='simple'):
         """Return meta-data for a single parameter of interest.
         
@@ -513,6 +534,7 @@ class Must:
         return param
 
 
+    @exception
     def get_param_stats(self, param_name, start_time=None, stop_time=None, provider=None):
 
         provider = self.get_provider(provider)
@@ -547,6 +569,7 @@ class Must:
         return stats
 
 
+    @exception
     def search_parameter(self, search_text, search_by='description', provider=None):
         """The provided searche text is used to search within the parameter
         descriptions. Matching parameters are returned in a Pandas DataFrame.
@@ -597,6 +620,7 @@ class Must:
         return params
 
 
+    @exception
     def tree_search(self, text='', fields='Name,Description', provider=None):
 
         provider = self.get_provider(provider)
