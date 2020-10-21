@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name='mustlink',
-    version='0.3.1a1',
+    version='0.3.1',
     author='Mark S. Bentley',
     author_email='mark@lunartech.org',
     description='A python wrapper for the ESA mustlink API',
