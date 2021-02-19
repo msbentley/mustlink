@@ -22,6 +22,7 @@ import urllib
 import os
 import functools
 import pandas as pd
+import json
 import matplotlib.pyplot as plt
 import matplotlib.dates as md
 
@@ -465,17 +466,28 @@ class Must:
         return data
 
 
-    def plot_data(self, param_name, start_time=None, stop_time=None, provider=None, calib=False, max_pts=None):
+    def plot_data(self, param_name, start_time=None, stop_time=None, 
+        provider=None, calib=False, max_pts=None, limits=False):
         """Accepts the same parameters as get_data() and retrieves and plots the data as a
         time series.  Returns a matplotlib axis object."""
 
-        meta = self.get_param_info(param_name)
+        if limits:
+            meta = self.get_param_info(param_name, mode='complex')
+        else:
+            meta = self.get_param_info(param_name, mode='simple')
         data = self.get_data(param_name, start_time, stop_time, provider, calib, max_pts)
         if data is None:
             return None
 
         fig, ax = plt.subplots()
         ax.scatter(data.index, data[param_name], marker='.')
+
+        if limits:
+            ax.axhline(meta['hard_high'], linestyle='-', color='r')
+            ax.axhline(meta['hard_low'], linestyle='-', color='r')
+            ax.axhline(meta['soft_high'], linestyle='--', color='y')
+            ax.axhline(meta['soft_low'], linestyle='--', color='y')
+
         ax.set_title(meta['Description'])
         ax.set_xlabel('Date (UTC)')
         if 'Unit' in meta.index:
@@ -524,10 +536,42 @@ class Must:
 
         if mode=='simple':
             param = pd.Series(r.json())
-            param['First Sample'] = pd.NaT if param['First Sample']=='N/A' else pd.to_datetime(param['First Sample'])
-            param['Last Sample'] = pd.NaT if param['Last Sample']=='N/A' else pd.to_datetime(param['Last Sample'])
         else:
-            param = r.json()
+            param = pd.DataFrame.from_dict(r.json()['metadata'])
+            param.set_index('key', inplace=True, drop=True)
+            param = param.squeeze()
+
+            checks = pd.DataFrame.from_dict(r.json()['monitoringChecks'])
+
+            if len(checks.useCalibrated.unique())>1:
+                log.warning('mixed calibration type in checks, ignoring')
+                param['check_cal'] = None
+            else:
+                param['check_cal'] = checks.useCalibrated.unique()[0]
+
+            if len(checks.checkInterpretation.unique())>1:
+                log.warning('mixed interpretation type in checks, ignoring')
+                param['check_type'] = None
+            else:
+                param['check_type'] = checks.checkInterpretation.unique()[0]
+
+            if len(checks)>2:
+                log.warn('extracting limits for parameters with >2 checks no supported')
+            else:
+                for idx, check in checks.iterrows():
+                    details = check.checkDefinitions
+                    if details['type']=='SOFT':
+                        param['soft_low'] = float(details['lowValue'])
+                        param['soft_high'] = float(details['highValue'])
+                    elif details['type']=='HARD':
+                        param['hard_low'] = float(details['lowValue'])
+                        param['hard_high'] = float(details['highValue'])
+                    else:
+                        log.warn('unsupported check type')
+            
+        param['First Sample'] = pd.NaT if param['First Sample']=='N/A' else pd.to_datetime(param['First Sample'])
+        param['Last Sample'] = pd.NaT if param['Last Sample']=='N/A' else pd.to_datetime(param['Last Sample'])
+
 
         log.info('parameter info for {:s} extracted'.format(param.Description))
 
