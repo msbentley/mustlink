@@ -15,5 +15,4 @@ setup(name='mustlink',
     install_requires=['matplotlib','pandas','pyyaml','requests'],
     python_requires='>=3.0',
     keywords = ['telemetry', 'MUST', 'ESA'],
-    packages=['mustlink'],
     zip_safe=False)
