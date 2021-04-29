@@ -16,15 +16,18 @@ user:
 
 """
 
+from numpy.testing._private.utils import _assert_valid_refcount
 import yaml
 import requests
 import urllib
 import os
 import functools
 import pandas as pd
-import json
 import matplotlib.pyplot as plt
 import matplotlib.dates as md
+import matplotlib.cm as cm
+
+import numpy as np
 
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
@@ -60,14 +63,17 @@ def exception(function):
 class Must:
 
 
-    def __init__(self, url=default_url, config_file=default_config):
+    def __init__(self, url=default_url, config_file=default_config, proxy_url=None):
         """The WebMUST URL instance can be specified, along with a
         YAML config file containing a user section with login and
         password entries. If neither of these are provided, the
-        default values are used"""
+        default values are used.
+        
+        A SOCKS5 proxy can be used - specify as hostname:port"""
 
         self.url = url
         self.config = None
+        self.proxy = None if proxy_url is None else dict(http='socks5h://{:s}'.format(proxy_url),https='socks5h://{:s}'.format(proxy_url))
         self.auth(config_file)
         self.get_providers()
         self.default_provider = None
@@ -93,7 +99,8 @@ class Must:
                 r = requests.post(self._url('/auth/login'), json={
                     'username': self.config['user']['login'],
                     'password': self.config['user']['password'],
-                    'maxDuration': 'false'})
+                    'maxDuration': 'false'},
+                    proxies=self.proxy)
                 r.raise_for_status()
                 self.token = r.json()['token']
             except (requests.exceptions.RequestException, ConnectionResetError) as err:
@@ -111,7 +118,8 @@ class Must:
 
         r = requests.get(
                 self._url('/usermanagement/userinfo'),
-                headers={'Authorization': self.token})
+                headers={'Authorization': self.token},
+                proxies=self.proxy)
         r.raise_for_status()
         user = r.json()
         log.info('user {:s} currently logged in'.format(user['login']))
@@ -126,7 +134,8 @@ class Must:
         
         r = requests.get(
                 self._url('/dataproviders'),
-                headers={'Authorization': self.token})
+                headers={'Authorization': self.token},
+                proxies=self.proxy)
         r.raise_for_status()
         providers = r.json()
         self.providers = [p['name'] for p in providers if p['user']=='webmust']
@@ -188,7 +197,8 @@ class Must:
 
         r = requests.get(
             self._url('/dataproviders/{:s}/tables'.format(provider)), 
-            headers={'Authorization': self.token})
+            headers={'Authorization': self.token},
+            proxies=self.proxy)
         r.raise_for_status()
         self.tables[provider] = r.json()
         log.info('provider {:s} has {:d} table(s)'.format(provider, len(r.json())))
@@ -214,7 +224,8 @@ class Must:
 
         r = requests.get(
             self._url('/dataproviders/{:s}/table/{:s}/metadata'.format(provider, table)), 
-            headers={'Authorization': self.token})
+            headers={'Authorization': self.token},
+            proxies=self.proxy)
         r.raise_for_status()
         table_meta = r.json()
         
@@ -271,7 +282,8 @@ class Must:
                 'filterValues': search_text,
                 'mode': mode.upper(),
                 'representation': fmt.upper(),
-                'maxRows': max_rows})
+                'maxRows': max_rows},
+                proxies=self.proxy)
         log.debug('request URL: {:s}'.format(r.url))
         log.debug('data retrieval done')
 
@@ -336,7 +348,7 @@ class Must:
         
         params = urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
         r = requests.get(self._url('/web/tables/params/{:s}/{:s}'.format(provider, table)),
-            headers={'Authorization': self.token}, params=params)
+            headers={'Authorization': self.token}, params=params, proxies=self.proxy)
 
         r.raise_for_status()
         data = r.json()
@@ -374,7 +386,8 @@ class Must:
 
         r = requests.get(self._url('/dataproviders/{:s}/aggregations'.format(provider)),
             params = params,
-            headers={'Authorization': self.token})
+            headers={'Authorization': self.token},
+            proxies=self.proxy)
         r.raise_for_status()
 
         return r.json()
@@ -382,9 +395,13 @@ class Must:
 
     @exception
     def get_data(self, param_name, start_time=None, stop_time=None, provider=None, calib=False, max_pts=None):
-        """Requests data for a given parameter and time-range. Minimal checking is 
+        """Requests data for given parameter(s) and time-range. Minimal checking is 
         currently performed on the times and return codes. Data are formatted into
-        a Pandas DataFrame with time conversion to UTC performed"""
+        a Pandas DataFrame with time conversion to UTC performed.
+        
+        If a list of parameters is provided these are retrieves individually and
+        the series merged into a DataFrame merging the timestamps if they are
+        identical to the nearest millisecond"""
 
         provider = self.get_provider(provider)
         if provider is None:
@@ -400,32 +417,54 @@ class Must:
         elif type(stop_time) == str:
             stop_time = pd.Timestamp(stop_time)
 
-        r = requests.get(self._url('/dataproviders/{:s}/parameters/data'.format(provider)),
-            headers={'Authorization': self.token},
-            params={
-                'key': 'name',
-                'values': param_name,
-                'from': start_time.strftime(date_format),
-                'to': stop_time.strftime(date_format),
-                'calibrate': 'true' if calib else 'false',
-                'chunkCount': '' if max_pts is None else max_pts})
-        r.raise_for_status()
+        if type(param_name)==str:
+            param_name = [param_name]
 
-        meta = {val['key']: val['value'] for val in r.json()[0]['metadata']}
-        data = pd.DataFrame.from_dict(r.json()[0]['data'])
-        if len(data) == 0:
-            log.warn('no data available for parameter {:s} in this time range'.format(param_name))
-            return None
-        data.date = pd.to_datetime(data.date, unit='ms')
-        data.set_index('date', drop=True, inplace=True)
-        data.rename(columns={'value': meta['name']}, inplace=True)
+        data_list = []
 
-        if not calib:
+        for param in param_name:
+
+            r = requests.get(self._url('/dataproviders/{:s}/parameters/data'.format(provider)),
+                headers={'Authorization': self.token},
+                params={
+                    'key': 'name',
+                    'values': param,
+                    'from': start_time.strftime(date_format),
+                    'to': stop_time.strftime(date_format),
+                    'calibrate': 'true' if calib else 'false',
+                    'chunkCount': '' if max_pts is None else max_pts},
+                    proxies=self.proxy)
+            r.raise_for_status()
+
+            meta = {val['key']: val['value'] for val in r.json()[0]['metadata']}
+            data = pd.DataFrame.from_dict(r.json()[0]['data'])
+            if len(data) == 0:
+                log.warn('no data available for parameter {:s} in this time range'.format(param))
+                continue
+            data.date = pd.to_datetime(data.date, unit='ms')
+            data.set_index('date', drop=True, inplace=True)
+            data.rename(columns={'value': meta['name']}, inplace=True)
+            data_list.append(data)
+
+            if calib:
+                data[param] = data['calibratedValue']
             data.drop('calibratedValue', axis=1, inplace=True)
 
-        log.info('{:d} values retrieved'.format(len(data)))
+            log.info('{:d} values retrieved for parameter {:s}'.format(len(data), param))
 
-        return data
+        if len(data_list)==0:
+            log.warning('no data found for any parameter')
+            return None
+
+        # merged = data_list[0]
+        # for data in data_list[1:]:
+        #     merged = pd.merge_asof(merged, data, left_index=True, right_index=True, tolerance=pd.Timedelta("1ms"))
+
+        merged = pd.concat(data_list, join='outer', axis=1)
+
+        merged.sort_index(inplace=True)
+
+        return merged
 
 
     @exception
@@ -447,7 +486,8 @@ class Must:
                 'values': param_name,
                 'from': last_t.strftime(date_format),
                 'to': (last_t+pd.Timedelta(seconds=1)).strftime(date_format),
-                'calibrate': 'true' if calib else 'false'})
+                'calibrate': 'true' if calib else 'false'},
+            proxies=self.proxy)
         r.raise_for_status()
 
         data = pd.DataFrame.from_dict(r.json()[0]['data'])
@@ -475,6 +515,7 @@ class Must:
             meta = self.get_param_info(param_name, mode='complex')
         else:
             meta = self.get_param_info(param_name, mode='simple')
+
         data = self.get_data(param_name, start_time, stop_time, provider, calib, max_pts)
         if data is None:
             return None
@@ -493,7 +534,7 @@ class Must:
         if 'Unit' in meta.index:
             ax.set_ylabel(meta['Unit'])
         else:
-            ax.set_ylabel('Raw')
+            ax.set_ylabel('Calibrated') if calib else ax.set_ylabel('Raw')
         ax.grid(True)
         fig.autofmt_xdate()
         xfmt = md.DateFormatter('%Y-%m-%d %H:%M:%S')
@@ -502,6 +543,75 @@ class Must:
         plt.show()
 
         return ax
+
+
+
+    def plot_timeline(self, param_name, start_time=None, stop_time=None, 
+        provider=None, calib=False, max_pts=None):
+        """Accepts the same parameters as get_data() and retrieves and plots the data as a
+        timeline (broken bar) plot.  Returns a matplotlib axis object."""
+
+        meta = self.get_param_info(param_name, mode='simple')
+        data = self.get_data(param_name, start_time, stop_time, provider, calib, max_pts)
+        data = data.squeeze()
+
+        if data is None:
+            return None
+
+        fig, ax = plt.subplots()
+        
+        # get a list of changes in the data
+        # changes = data[data.diff()!=0].index.tolist() # <-- does not work with strings
+        # changes = data[1:][data[1:].ne(data[1:].shift())].index.tolist()
+        changes = data[data.ne(data.shift())].index.tolist()
+
+        # add the end of the last period
+        changes.append(data.index.max())
+
+        # trying to do gap detection here to NOT fully shade areas where we have no data
+        # first finding the mean periodicity of the data
+        mean = data.index.to_series().diff().mean()
+
+        # now flag periods where the gaps are 2x this
+        gap_ends = data[data.index.to_series().diff()>2*mean].index.tolist()
+
+        # get the durations
+        durations = np.diff(changes)
+
+
+
+        # make a colour index with the correct number of colors, spanning the colourmap
+        colours = cm.get_cmap('viridis')
+
+        # get the list of unique values and create a colour list with this many entries
+        num_unique = len(data.unique())
+        colour_list = [colours(1.*i/num_unique) for i in range(num_unique)]
+        
+        # make a dictionary mapping unique values to colours
+        unique = data.unique().tolist()
+        colors = data[changes].map(dict(zip(unique, colour_list)))
+
+ 
+
+        # now define the x and y ranges 
+        xranges = [(stop, end) for stop, end in zip(changes, durations)]
+        yranges = (1, 0.5)
+
+        # plot it using the broken horizontal bar function
+        ax.broken_barh(xranges, yranges, facecolors=colors, zorder=2)
+        
+        ax.set_title(meta['Description'])
+        ax.set_xlabel('Date (UTC)')
+        # if 'Unit' in meta.index:
+        #     ax.set_ylabel(meta['Unit'])
+        # else:
+        #     ax.set_ylabel('Calibrated') if calib else ax.set_ylabel('Raw')
+        fig.autofmt_xdate()
+        xfmt = md.DateFormatter('%Y-%m-%d %H:%M:%S')
+        ax.xaxis.set_major_formatter(xfmt)
+
+        return ax
+
 
 
     @exception
@@ -526,7 +636,8 @@ class Must:
             'value': param_name,
             'search': 'false',
             'mode': mode.upper(),
-            'parameterType': 'TM'})
+            'parameterType': 'TM'},
+        proxies=self.proxy)
         r.raise_for_status()
 
         matches = r.json()
@@ -601,7 +712,8 @@ class Must:
                 'key': 'name',
                 'values': param_name,
                 'from': start_time.strftime(date_format),
-                'to': stop_time.strftime(date_format) })
+                'to': stop_time.strftime(date_format) },
+            proxies=self.proxy)
         r.raise_for_status()
 
         stats = pd.Series(r.json())
@@ -643,7 +755,8 @@ class Must:
             'value': search_text,
             'search': 'true',
             'mode': 'SIMPLE',
-            'parameterType': 'TM'})
+            'parameterType': 'TM'},
+        proxies=self.proxy)
         r.raise_for_status()
 
         matches = r.json()
@@ -677,7 +790,8 @@ class Must:
             'field': fields,
             'text': text,
             'dataproviders': provider
-        })
+        },
+        proxies=self.proxy)
 
         r.raise_for_status()
 
