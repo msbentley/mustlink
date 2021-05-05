@@ -311,9 +311,12 @@ class Must:
         else:
             table_data = pd.DataFrame(data['data'])
 
+        # try to determine any time columns - this doesn't always work!
         time_cols = [col for col in table_data.columns if 'time' in col.lower()]
+        if 'Time Quality' in time_cols:
+            time_cols.remove('Time Quality')
         for col in time_cols:
-            table_data[col] = pd.to_datetime(table_data[col])
+            table_data[col] = pd.to_datetime(table_data[col], errors='coerce')
         
         if not quiet:
             log.info('{:d} table entries retrieved'.format(len(table_data)))
