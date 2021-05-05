@@ -60,6 +60,7 @@ def exception(function):
         except requests.exceptions.RequestException as e: 
             log.error(e)
     return wrapper
+
 class Must:
 
 
@@ -73,6 +74,7 @@ class Must:
 
         self.url = url
         self.config = None
+        self.token = None
         self.proxy = None if proxy_url is None else dict(http='socks5h://{:s}'.format(proxy_url),https='socks5h://{:s}'.format(proxy_url))
         self.auth(config_file)
         self.get_providers()
@@ -85,7 +87,7 @@ class Must:
         
         return self.url + path
 
-
+    @exception
     def auth(self, config_file):
         """Try to authorise with the WebMUST instance using the user
         and password specified in the config file (and loaded into
@@ -103,11 +105,14 @@ class Must:
                     proxies=self.proxy)
                 r.raise_for_status()
                 self.token = r.json()['token']
+                log.debug('token retrieved: {:s}'.format(self.token))
             except (requests.exceptions.RequestException, ConnectionResetError) as err:
                 log.error(err)
         except FileNotFoundError:
             log.error('config file {:s} not found'.format(config_file))
 
+        if self.token is None:
+            log.error('error logging in, please try again')
         self.user = self.get_user()
 
         return
@@ -138,7 +143,7 @@ class Must:
                 proxies=self.proxy)
         r.raise_for_status()
         providers = r.json()
-        self.providers = [p['name'] for p in providers if p['user']=='webmust']
+        self.providers = [p['name'] for p in providers if (p['user'] is not None and p['user']!='SCRIPTING ENGINE')]
         log.info('{:d} providers found'.format(len(self.providers)))
 
         return
