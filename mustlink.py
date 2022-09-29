@@ -368,7 +368,7 @@ class Must:
         cols = data['headers']
         datacells = [row['dataCells'] for row in data['data']][0]
         table_data = pd.DataFrame(datacells)
-        drop_cols = ['cellValue', 'altText', 'bgColor', 'detail', 'webpagelink', 'rowParams']
+        drop_cols = ['cellValue', 'altText', 'bgColor', 'detail', 'webpagelink', 'rowParams', 'metadata']
         table_data.drop(drop_cols, inplace=True, axis=1)
         table_data.columns = cols
 
