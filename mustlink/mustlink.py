@@ -16,7 +16,7 @@ user:
 
 """
 
-from numpy.testing._private.utils import _assert_valid_refcount
+# from numpy.testing._private.utils import _assert_valid_refcount
 import yaml
 import requests
 import urllib
