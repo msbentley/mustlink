@@ -306,6 +306,8 @@ class Must:
             datacells = [row['dataCells'] for row in data['data']]
             
             for idx, col in enumerate(cols):
+                if 'cellValue' not in pd.DataFrame(datacells)[idx].iloc[0].keys():
+                    continue
                 col_vals = pd.DataFrame(datacells)[idx].apply( lambda row: row['cellValue'] )
                 table_data[col] = col_vals
         else:
