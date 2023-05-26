@@ -451,7 +451,7 @@ class Must:
             if len(data) == 0:
                 log.warn('no data available for parameter {:s} in this time range'.format(param))
                 continue
-            data.date = pd.to_datetime(data.date, unit='ms')
+            data.date = pd.to_datetime(pd.to_numeric(data.date), unit='ms')
             data.set_index('date', drop=True, inplace=True)
             data.rename(columns={'value': meta['name']}, inplace=True)
             data_list.append(data)
@@ -504,7 +504,7 @@ class Must:
         if len(data) == 0:
             log.warn('no data available for parameter {:s} in this time range'.format(param_name))
             return None
-        data.date = pd.to_datetime(data.date, unit='ms')
+        data.date = pd.to_datetime(pd.to_numeric(data.date), unit='ms')
         data.set_index('date', drop=True, inplace=True)
         data.rename(columns={'value': meta['Name']}, inplace=True)
 
