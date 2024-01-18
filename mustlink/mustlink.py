@@ -625,7 +625,7 @@ class Must:
 
 
     @exception
-    def get_param_info(self, param_name, provider=None, mode='simple'):
+    def get_param_info(self, param_name='', provider=None, mode='simple'):
         """Return meta-data for a single parameter of interest.
         
         Setting mode='complex' will provide additional information such 
@@ -689,12 +689,16 @@ class Must:
                         param['hard_high'] = float(details['highValue'])
                     else:
                         log.warn('unsupported check type')
-            
-        param['First Sample'] = pd.NaT if param['First Sample']=='N/A' else pd.to_datetime(param['First Sample'])
-        param['Last Sample'] = pd.NaT if param['Last Sample']=='N/A' else pd.to_datetime(param['Last Sample'])
 
+        if isinstance(param.axes[0], pd.core.indexes.range.RangeIndex): # we have a list, convert to a df
+            description = 'multiple parameters'
+            param = pd.DataFrame(param.values.tolist())
+        else: # assume we have a single parameter
+            param['First Sample'] = pd.NaT if param['First Sample']=='N/A' else pd.to_datetime(param['First Sample'])
+            param['Last Sample'] = pd.NaT if param['Last Sample']=='N/A' else pd.to_datetime(param['Last Sample'])
+            description = param.Description
 
-        log.info('parameter info for {:s} extracted'.format(param.Description))
+        log.info('parameter info for {:s} extracted'.format(description))
 
         return param
 
