@@ -300,6 +300,7 @@ class Must:
             return None
 
         cols = data['headers']
+        cols = [c['name'] for c in cols]
 
         table_data = pd.DataFrame([], columns=cols)
         if fmt=='complex':
@@ -409,7 +410,7 @@ class Must:
         currently performed on the times and return codes. Data are formatted into
         a Pandas DataFrame with time conversion to UTC performed.
         
-        If a list of parameters is provided these are retrieves individually and
+        If a list of parameters is provided these are retrieved individually and
         the series merged into a DataFrame merging the timestamps if they are
         identical to the nearest millisecond"""
 
@@ -455,7 +456,6 @@ class Must:
             data.set_index('date', drop=True, inplace=True)
             data.rename(columns={'value': meta['name']}, inplace=True)
             data_list.append(data)
-
             if calib:
                 data[param] = data['calibratedValue']
             data.drop('calibratedValue', axis=1, inplace=True)
@@ -530,8 +530,8 @@ class Must:
         if data is None:
             return None
 
-        fig, ax = plt.subplots()
-        ax.scatter(data.index, data[param_name], marker='.')
+        ax = data.plot(marker='.', linestyle='--')
+        # ax.scatter(data.index, data[param_name], marker='.')
 
         if limits:
             ax.axhline(meta['hard_high'], linestyle='-', color='r')
@@ -546,7 +546,7 @@ class Must:
         else:
             ax.set_ylabel('Calibrated') if calib else ax.set_ylabel('Raw')
         ax.grid(True)
-        fig.autofmt_xdate()
+        # fig.autofmt_xdate()
         xfmt = md.DateFormatter('%Y-%m-%d %H:%M:%S')
         ax.xaxis.set_major_formatter(xfmt)
 
@@ -816,3 +816,23 @@ class Must:
                 break
 
         return data
+
+
+    @exception
+    def get_tree(self, id=0, provider=None):
+
+        provider = self.get_provider(provider)
+        if provider is None:
+            return None
+
+        r = requests.get(self._url('/metadata/tree'),
+        headers={'Authorization': self.token},
+        params={
+            'ds': provider,
+            'id': id
+        },
+        proxies=self.proxy)
+
+        r.raise_for_status()
+
+        return r.json()
